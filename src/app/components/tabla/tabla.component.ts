@@ -7,6 +7,8 @@ import { CommonModule } from '@angular/common';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { finalize } from 'rxjs';
 import { AddPostDialogComponent } from '../../../../add-post-dialog.component';
 import { Post } from '../../../../post.model';
 import { PostService } from '../../../../post.service';
@@ -22,6 +24,7 @@ import { PostService } from '../../../../post.service';
     MatDialogModule,
     MatPaginatorModule,
     MatProgressSpinnerModule,
+    MatSnackBarModule,
   ],
   templateUrl: './tabla.component.html',
   styleUrls: ['./tabla.component.css'],
@@ -34,7 +37,11 @@ export class TablaComponent implements OnInit, AfterViewInit {
 
   @ViewChild(MatPaginator) paginator!: MatPaginator;
 
-  constructor(public dialog: MatDialog, private postService: PostService) { }
+  constructor(
+    public dialog: MatDialog,
+    private postService: PostService,
+    private _snackBar: MatSnackBar
+  ) {}
 
   ngOnInit(): void {
     this.loadPosts();
@@ -46,10 +53,18 @@ export class TablaComponent implements OnInit, AfterViewInit {
 
   loadPosts(): void {
     this.isLoading = true;
-    this.postService.getPosts().subscribe(posts => {
-      this.dataSource.data = posts;
-      this.isLoading = false;
-    });
+    this.postService
+      .getPosts()
+      .pipe(finalize(() => (this.isLoading = false)))
+      .subscribe({
+        next: (posts) => {
+          this.dataSource.data = posts;
+        },
+        error: (err) => {
+          console.error('Error al cargar los posts', err);
+          this._snackBar.open('Error al cargar los posts. Por favor, intente de nuevo.', 'Cerrar', { duration: 5000, panelClass: ['error-snackbar'] });
+        },
+      });
   }
 
   openAddPostDialog(): void {
@@ -67,10 +82,27 @@ export class TablaComponent implements OnInit, AfterViewInit {
   }
 
   addPost(newPost: Post): void {
-    this.postService.addPost(newPost).subscribe((post: Post) => {
-      console.log('Post agregado en el servidor:', post);
-      const currentData = this.dataSource.data;
-      this.dataSource.data = [post, ...currentData];
+    const loadingSnackbarRef = this._snackBar.open('Guardando post...');
+
+    this.postService.addPost(newPost).subscribe({
+      next: (post: Post) => {
+        loadingSnackbarRef.dismiss();
+        this._snackBar.open('¡Post guardado con éxito!', 'Cerrar', {
+          duration: 3000,
+          panelClass: ['success-snackbar'],
+        });
+        console.log('Post agregado en el servidor:', post);
+        const currentData = this.dataSource.data;
+        this.dataSource.data = [post, ...currentData];
+      },
+      error: (err) => {
+        loadingSnackbarRef.dismiss();
+        console.error('Error al guardar el post', err);
+        this._snackBar.open('Error al guardar el post. Por favor, intente de nuevo.', 'Cerrar', {
+          duration: 5000,
+          panelClass: ['error-snackbar'],
+        });
+      },
     });
   }
 }
