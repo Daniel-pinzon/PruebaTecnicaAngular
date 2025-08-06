@@ -23,18 +23,26 @@ import { Post } from './post.model';
 })
 export class AddPostDialogComponent {
     postForm: FormGroup;
-    isEditMode: boolean = false;
-    dialogTitle: string = '';
+    isEditMode: boolean;
+    dialogTitle: string;
 
     constructor(
         public dialogRef: MatDialogRef<AddPostDialogComponent>,
-        private fb: FormBuilder, // <- esta línea faltaba
+        private fb: FormBuilder,
+        @Inject(MAT_DIALOG_DATA) public data: Post | null
     ) {
+        this.isEditMode = !!data;
+        this.dialogTitle = this.isEditMode ? 'Editar Post' : 'Agregar Nuevo Post';
+
         this.postForm = this.fb.group({
             userId: ['', [Validators.required, Validators.pattern('^[0-9]*$')]],
             title: ['', Validators.required],
             body: ['', Validators.required],
         });
+
+        if (this.isEditMode && this.data) {
+            this.postForm.patchValue(this.data);
+        }
     }
 
     onCancel(): void {

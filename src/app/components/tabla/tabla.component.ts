@@ -31,7 +31,7 @@ import { PostService } from '../../../../post.service';
   styleUrls: ['./tabla.component.css'],
 })
 export class TablaComponent implements OnInit, AfterViewInit {
-  displayedColumns: string[] = ['id', 'title', 'userId', 'actions'];
+  displayedColumns: string[] = ['id', 'title', 'userId', 'body', 'actions'];
   dataSource = new MatTableDataSource<Post>();
   isLoading = true;
 
