@@ -1,64 +1,76 @@
-import { Component } from '@angular/core';
+import { AfterViewInit, Component, OnInit, ViewChild } from '@angular/core';
 import { MatCardModule } from '@angular/material/card';
-import { MatTableModule } from '@angular/material/table';
+import { MatTableDataSource, MatTableModule } from '@angular/material/table';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
-
-export interface Post {
-  title: string;
-  userId: number;
-  body: string;
-}
-
-const ELEMENT_DATA: Post[] = [
-  { userId: 1, title: 'sunt aut facere repellat provident occaecati excepturi optio reprehenderit', body: 'quia et suscipit\nsuscipit recusandae consequuntur expedita et cum\nreprehenderit molestiae ut ut quas totam\nnostrum rerum est autem sunt rem eveniet architecto' },
-  { userId: 1, title: 'qui est esse', body: 'est rerum tempore vitae\nsequi sint nihil reprehenderit dolor beatae ea dolores neque\nfugiat blanditiis voluptate porro vel nihil molestiae ut reiciendis\nqui aperiam non debitis possimus qui neque nisi nulla' },
-  { userId: 1, title: 'ea molestias quasi exercitationem repellat qui ipsa sit aut', body: 'et iusto sed quo iure\nvoluptatem occaecati omnis eligendi aut ad\nvoluptatem doloribus vel accusantium quis pariatur\nmolestiae porro eius odio et labore et velit aut' },
-];
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { AddPostDialogComponent } from '../../../../add-post-dialog.component';
+import { Post } from '../../../../post.model';
+import { PostService } from '../../../../post.service';
 
 @Component({
   selector: 'app-tabla',
   imports: [
     CommonModule,
-    ReactiveFormsModule,
     MatCardModule,
     MatTableModule,
     MatButtonModule,
     MatIconModule,
-    MatFormFieldModule,
-    MatInputModule,
+    MatDialogModule,
+    MatPaginatorModule,
+    MatProgressSpinnerModule,
   ],
   templateUrl: './tabla.component.html',
-  styleUrl: './tabla.component.css',
+  styleUrls: ['./tabla.component.css'],
   standalone: true,
 })
-export class TablaComponent {
-  displayedColumns: string[] = ['title', 'userId', 'body'];
-  dataSource = ELEMENT_DATA;
-  showAddPostForm = false;
-  postForm: FormGroup;
+export class TablaComponent implements OnInit, AfterViewInit {
+  displayedColumns: string[] = ['id', 'title', 'userId', 'body'];
+  dataSource = new MatTableDataSource<Post>();
+  isLoading = true;
 
-  constructor(private fb: FormBuilder) {
-    this.postForm = this.fb.group({
-      userId: ['', Validators.required],
-      title: ['', Validators.required],
-      body: ['', Validators.required],
+  @ViewChild(MatPaginator) paginator!: MatPaginator;
+
+  constructor(public dialog: MatDialog, private postService: PostService) { }
+
+  ngOnInit(): void {
+    this.loadPosts();
+  }
+
+  ngAfterViewInit() {
+    this.dataSource.paginator = this.paginator;
+  }
+
+  loadPosts(): void {
+    this.isLoading = true;
+    this.postService.getPosts().subscribe(posts => {
+      this.dataSource.data = posts;
+      this.isLoading = false;
     });
   }
 
-  toggleAddPostForm(): void {
-    this.showAddPostForm = !this.showAddPostForm;
+  openAddPostDialog(): void {
+    const dialogRef = this.dialog.open(AddPostDialogComponent, {
+      width: '450px',
+      disableClose: true, // Evita que el diálogo se cierre al hacer clic fuera
+    });
+
+    dialogRef.afterClosed().subscribe((result: Post | undefined) => {
+      // El 'result' es el valor que pasamos al cerrar el diálogo
+      if (result) {
+        this.addPost(result);
+      }
+    });
   }
 
-  addPost(): void {
-    if (this.postForm.valid) {
-      this.dataSource = [...this.dataSource, this.postForm.value];
-      this.postForm.reset();
-      this.showAddPostForm = false;
-    }
+  addPost(newPost: Post): void {
+    this.postService.addPost(newPost).subscribe((post: Post) => {
+      console.log('Post agregado en el servidor:', post);
+      const currentData = this.dataSource.data;
+      this.dataSource.data = [post, ...currentData];
+    });
   }
 }

@@ -6,3 +6,10 @@ mat-card {
   margin: 20px;
   border: 2px solid #ccc;
 }
+
+.spinner-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+}
