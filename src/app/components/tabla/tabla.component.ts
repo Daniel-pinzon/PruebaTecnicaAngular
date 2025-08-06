@@ -7,7 +7,7 @@ import { CommonModule } from '@angular/common';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatSnackBar, MatSnackBarConfig, MatSnackBarModule } from '@angular/material/snack-bar';
 import { finalize } from 'rxjs';
 import { AddPostDialogComponent } from '../../../../add-post-dialog.component';
 import { Post } from '../../../../post.model';
@@ -15,6 +15,7 @@ import { PostService } from '../../../../post.service';
 
 @Component({
   selector: 'app-tabla',
+  standalone: true,
   imports: [
     CommonModule,
     MatCardModule,
@@ -23,25 +24,26 @@ import { PostService } from '../../../../post.service';
     MatIconModule,
     MatDialogModule,
     MatPaginatorModule,
-    MatProgressSpinnerModule,
     MatSnackBarModule,
+    MatProgressSpinnerModule,
   ],
   templateUrl: './tabla.component.html',
   styleUrls: ['./tabla.component.css'],
-  standalone: true,
 })
 export class TablaComponent implements OnInit, AfterViewInit {
-  displayedColumns: string[] = ['id', 'title', 'userId', 'body'];
+  displayedColumns: string[] = ['id', 'title', 'userId', 'body', 'actions'];
   dataSource = new MatTableDataSource<Post>();
   isLoading = true;
 
   @ViewChild(MatPaginator) paginator!: MatPaginator;
 
-  constructor(
-    public dialog: MatDialog,
-    private postService: PostService,
-    private _snackBar: MatSnackBar
-  ) {}
+  private snackBarConfig: MatSnackBarConfig = {
+    duration: 3000,
+    horizontalPosition: 'center',
+    verticalPosition: 'top',
+  };
+
+  constructor(public dialog: MatDialog, private postService: PostService, private _snackBar: MatSnackBar) {}
 
   ngOnInit(): void {
     this.loadPosts();
@@ -53,56 +55,102 @@ export class TablaComponent implements OnInit, AfterViewInit {
 
   loadPosts(): void {
     this.isLoading = true;
-    this.postService
-      .getPosts()
-      .pipe(finalize(() => (this.isLoading = false)))
+    this.postService.getPosts()
+      .pipe(finalize(() => this.isLoading = false))
       .subscribe({
-        next: (posts) => {
+        next: posts => {
           this.dataSource.data = posts;
         },
         error: (err) => {
           console.error('Error al cargar los posts', err);
-          this._snackBar.open('Error al cargar los posts. Por favor, intente de nuevo.', 'Cerrar', { duration: 5000, panelClass: ['error-snackbar'] });
-        },
+          this.showSnackbar('Error al cargar los posts', 'error-snackbar');
+        }
       });
   }
 
   openAddPostDialog(): void {
     const dialogRef = this.dialog.open(AddPostDialogComponent, {
       width: '450px',
-      disableClose: true, // Evita que el diálogo se cierre al hacer clic fuera
+      disableClose: true,
     });
 
     dialogRef.afterClosed().subscribe((result: Post | undefined) => {
-      // El 'result' es el valor que pasamos al cerrar el diálogo
-      if (result) {
-        this.addPost(result);
+      if (result) { // Omit<Post, 'id'>
+        this.addPost(result as Omit<Post, 'id'>);
       }
     });
   }
 
-  addPost(newPost: Post): void {
-    const loadingSnackbarRef = this._snackBar.open('Guardando post...');
+  openEditPostDialog(post: Post): void {
+    const dialogRef = this.dialog.open(AddPostDialogComponent, {
+      width: '450px',
+      disableClose: true,
+      data: { ...post } // Pasamos una copia para no mutar el original
+    });
 
+    dialogRef.afterClosed().subscribe((result: Partial<Post> | undefined) => {
+      if (result) {
+        this.updatePost({ ...post, ...result });
+      }
+    });
+  }
+
+  addPost(newPost: Omit<Post, 'id'>): void {
+    this.showSnackbar('Guardando post...', 'info-snackbar', 0);
     this.postService.addPost(newPost).subscribe({
       next: (post: Post) => {
-        loadingSnackbarRef.dismiss();
-        this._snackBar.open('¡Post guardado con éxito!', 'Cerrar', {
-          duration: 3000,
-          panelClass: ['success-snackbar'],
-        });
-        console.log('Post agregado en el servidor:', post);
+        this._snackBar.dismiss();
+        this.showSnackbar('¡Post guardado con éxito!', 'success-snackbar');
         const currentData = this.dataSource.data;
         this.dataSource.data = [post, ...currentData];
       },
       error: (err) => {
-        loadingSnackbarRef.dismiss();
-        console.error('Error al guardar el post', err);
-        this._snackBar.open('Error al guardar el post. Por favor, intente de nuevo.', 'Cerrar', {
-          duration: 5000,
-          panelClass: ['error-snackbar'],
-        });
+        this._snackBar.dismiss();
+        this.showSnackbar('Error al guardar el post', 'error-snackbar');
+        console.error('Error guardando post', err);
+      }
+    });
+  }
+
+  updatePost(post: Post): void {
+    this.showSnackbar('Actualizando post...', 'info-snackbar', 0);
+    this.postService.updatePost(post).subscribe({
+      next: updatedPost => {
+        this._snackBar.dismiss();
+        const index = this.dataSource.data.findIndex(p => p.id === updatedPost.id);
+        if (index > -1) {
+          const data = this.dataSource.data;
+          data[index] = updatedPost;
+          this.dataSource.data = data;
+          this.showSnackbar('¡Post actualizado con éxito!', 'success-snackbar');
+        }
       },
+      error: err => {
+        this._snackBar.dismiss();
+        this.showSnackbar('Error al actualizar el post', 'error-snackbar');
+        console.error('Error actualizando post', err);
+      }
+    });
+  }
+
+  deletePost(postToDelete: Post): void {
+    this.postService.deletePost(postToDelete.id!).subscribe({
+      next: () => {
+        this.dataSource.data = this.dataSource.data.filter(p => p.id !== postToDelete.id);
+        this.showSnackbar('¡Post eliminado con éxito!', 'success-snackbar');
+      },
+      error: err => {
+        this.showSnackbar('Error al eliminar el post', 'error-snackbar');
+        console.error('Error eliminando post', err);
+      }
+    });
+  }
+
+  private showSnackbar(message: string, panelClass: string, duration?: number) {
+    this._snackBar.open(message, 'Cerrar', {
+      ...this.snackBarConfig,
+      duration: duration === undefined ? this.snackBarConfig.duration : duration,
+      panelClass: [panelClass]
     });
   }
 }

@@ -9,13 +9,21 @@ import { Post } from './post.model';
 export class PostService {
   private apiUrl = 'https://jsonplaceholder.typicode.com/posts';
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient) { }
 
   getPosts(): Observable<Post[]> {
     return this.http.get<Post[]>(this.apiUrl);
   }
 
-  addPost(post: Post): Observable<Post> {
+  addPost(post: Omit<Post, 'id'>): Observable<Post> {
     return this.http.post<Post>(this.apiUrl, post);
+  }
+
+  updatePost(post: Post): Observable<Post> {
+    return this.http.put<Post>(`${this.apiUrl}/${post.id}`, post);
+  }
+
+  deletePost(id: number): Observable<{}> {
+    return this.http.delete<{}>(`${this.apiUrl}/${id}`);
   }
 }
