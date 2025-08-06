@@ -12,6 +12,7 @@ import { finalize } from 'rxjs';
 import { AddPostDialogComponent } from '../../../../add-post-dialog.component';
 import { Post } from '../../../../post.model';
 import { PostService } from '../../../../post.service';
+import { ConfirmDialogComponent } from '../../../../confirm-dialog.component';
 
 @Component({
   selector: 'app-tabla',
@@ -134,14 +135,25 @@ export class TablaComponent implements OnInit, AfterViewInit {
   }
 
   deletePost(postToDelete: Post): void {
-    this.postService.deletePost(postToDelete.id!).subscribe({
-      next: () => {
-        this.dataSource.data = this.dataSource.data.filter(p => p.id !== postToDelete.id);
-        this.showSnackbar('¡Post eliminado con éxito!', 'success-snackbar');
-      },
-      error: err => {
-        this.showSnackbar('Error al eliminar el post', 'error-snackbar');
-        console.error('Error eliminando post', err);
+    const dialogRef = this.dialog.open(ConfirmDialogComponent, {
+      data: {
+        title: 'Confirmar Eliminación',
+        message: `¿Estás seguro de que deseas eliminar el post "${postToDelete.title}"?`
+      }
+    });
+
+    dialogRef.afterClosed().subscribe(confirmed => {
+      if (confirmed) {
+        this.postService.deletePost(postToDelete.id!).subscribe({
+          next: () => {
+            this.dataSource.data = this.dataSource.data.filter(p => p.id !== postToDelete.id);
+            this.showSnackbar('¡Post eliminado con éxito!', 'success-snackbar');
+          },
+          error: err => {
+            this.showSnackbar('Error al eliminar el post', 'error-snackbar');
+            console.error('Error eliminando post', err);
+          }
+        });
       }
     });
   }
